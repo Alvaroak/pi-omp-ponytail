@@ -1,6 +1,6 @@
 {
   "name": "@alvaroak/pi-omp-ponytail",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Lazy senior dev mode with intensity levels, for both the omp and pi coding agents",
   "license": "MIT",
   "keywords": [
@@ -31,5 +31,19 @@
     "extensions": [
       "./index.ts"
     ]
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-tui": {
+      "optional": true
+    },
+    "@oh-my-pi/pi-coding-agent": {
+      "optional": true
+    },
+    "@oh-my-pi/pi-tui": {
+      "optional": true
+    }
   }
 }
