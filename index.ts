@@ -12,8 +12,14 @@
  * Ruleset adapted from @dietrichgebert/ponytail (MIT), skills/ponytail/SKILL.md.
  */
 
-import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
-import { type Focusable, matchesKey, visibleWidth } from "@earendil-works/pi-tui";
+import type { ExtensionAPI, ExtensionContext, Theme } from "@oh-my-pi/pi-coding-agent";
+import type * as PiTui from "@oh-my-pi/pi-tui";
+import type { Focusable } from "@oh-my-pi/pi-tui";
+
+let K: Pick<typeof PiTui, "matchesKey" | "visibleWidth">;
+
+/** omp's ExtensionAPI has a `logger`; pi's does not. */
+const isOmp = (pi: ExtensionAPI) => "logger" in pi;
 
 export type PonytailMode = "off" | "lite" | "full" | "ultra";
 
@@ -152,25 +158,26 @@ class PonytailPicker implements Focusable {
 		private readonly theme: Theme,
 		current: PonytailMode,
 		private readonly done: (mode: PonytailMode | undefined) => void,
+		private readonly border: (text: string) => string,
 	) {
 		this.selected = Math.max(0, MODE_OPTIONS.findIndex((option) => option.mode === current));
 	}
 
 	handleInput(data: string): void {
-		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) return this.done(undefined);
-		if (matchesKey(data, "up")) this.selected = (this.selected - 1 + MODE_OPTIONS.length) % MODE_OPTIONS.length;
-		else if (matchesKey(data, "down")) this.selected = (this.selected + 1) % MODE_OPTIONS.length;
-		else if (matchesKey(data, "return")) this.done(MODE_OPTIONS[this.selected]!.mode);
+		if (K.matchesKey(data, "escape") || K.matchesKey(data, "ctrl+c")) return this.done(undefined);
+		if (K.matchesKey(data, "up")) this.selected = (this.selected - 1 + MODE_OPTIONS.length) % MODE_OPTIONS.length;
+		else if (K.matchesKey(data, "down")) this.selected = (this.selected + 1) % MODE_OPTIONS.length;
+		else if (K.matchesKey(data, "return")) this.done(MODE_OPTIONS[this.selected]!.mode);
 	}
 
 	render(_width: number): string[] {
 		const innerWidth = this.width - 2;
-		const pad = (line: string) => line + " ".repeat(Math.max(0, innerWidth - visibleWidth(line)));
-		const row = (line: string) => this.theme.fg("border", "│") + pad(line) + this.theme.fg("border", "│");
+		const pad = (line: string) => line + " ".repeat(Math.max(0, innerWidth - K.visibleWidth(line)));
+		const row = (line: string) => this.border("│") + pad(line) + this.border("│");
 		const lines = [
-			this.theme.fg("border", `╭${"─".repeat(innerWidth)}╮`),
+			this.border(`╭${"─".repeat(innerWidth)}╮`),
 			row(` ${this.theme.fg("accent", "Ponytail mode")}`),
-			this.theme.fg("border", `├${"─".repeat(innerWidth)}┤`),
+			this.border(`├${"─".repeat(innerWidth)}┤`),
 		];
 		for (let index = 0; index < MODE_OPTIONS.length; index++) {
 			const option = MODE_OPTIONS[index]!;
@@ -180,9 +187,9 @@ class PonytailPicker implements Focusable {
 			lines.push(row(`${marker} ${label}  ${this.theme.fg("dim", option.description)}`));
 		}
 		lines.push(
-			this.theme.fg("border", `├${"─".repeat(innerWidth)}┤`),
+			this.border(`├${"─".repeat(innerWidth)}┤`),
 			row(` ${this.theme.fg("dim", "↑↓ select · Enter apply · Esc cancel")}`),
-			this.theme.fg("border", `╰${"─".repeat(innerWidth)}╯`),
+			this.border(`╰${"─".repeat(innerWidth)}╯`),
 		);
 		return lines;
 	}
@@ -208,9 +215,13 @@ export default function ponytailExtension(pi: ExtensionAPI): void {
 		ctx.ui.notify(mode === "off" ? "Ponytail off." : `Ponytail: ${mode}.`, "info");
 	}
 
-	async function openPicker(ctx: ExtensionContext): Promise<void> {
+	async function openPicker(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
+		K = await (isOmp(pi) ? import("@oh-my-pi/pi-tui") : import("@earendil-works/pi-tui"));
+		const border = isOmp(pi)
+			? (theme: Theme) => theme.getThinkingBorderColor(pi.getThinkingLevel() ?? "off")
+			: (theme: Theme) => (s: string) => theme.fg("border", s);
 		const next = await ctx.ui.custom<PonytailMode | undefined>(
-			(_tui, theme, _keybindings, done) => new PonytailPicker(theme, mode, done),
+			(_tui, theme, _keybindings, done) => new PonytailPicker(theme, mode, done, border(theme)),
 			{ overlay: true, overlayOptions: { anchor: "center", margin: 2 } },
 		);
 		if (next) setMode(ctx, next);
@@ -220,7 +231,7 @@ export default function ponytailExtension(pi: ExtensionAPI): void {
 		description: "Choose Ponytail mode, or pass off | lite | full | ultra",
 		handler: async (args, ctx) => {
 			const next = args.trim().toLowerCase();
-			if (next === "") return openPicker(ctx);
+			if (next === "") return openPicker(pi, ctx);
 			if (next !== "off" && next !== "lite" && next !== "full" && next !== "ultra") {
 				ctx.ui.notify(`Unknown level "${next}". Usage: /ponytail off|lite|full|ultra`, "warning");
 				return;
@@ -242,7 +253,13 @@ export default function ponytailExtension(pi: ExtensionAPI): void {
 
 	pi.on("before_agent_start", async (event) => {
 		if (mode === "off") return;
-		return { systemPrompt: `${event.systemPrompt}\n\n${BASE_RULESET}\n\n${MODE_TEXT[mode]}` };
+		// omp's system prompt is string[], pi's is string.
+		const base = Array.isArray(event.systemPrompt) ? event.systemPrompt : [event.systemPrompt];
+		return {
+			systemPrompt: isOmp(pi)
+				? [...base, BASE_RULESET, MODE_TEXT[mode]]
+				: `${base.join("\n")}\n\n${BASE_RULESET}\n\n${MODE_TEXT[mode]}`,
+		};
 	});
 
 	pi.on("session_start", async (_event, _ctx) => {

@@ -1,26 +1,35 @@
 {
-  "name": "@alvaroak/pi-ponytail",
-  "version": "0.1.0",
-  "description": "Lazy senior dev mode with intensity levels for the Pi coding agent",
+  "name": "@alvaroak/pi-omp-ponytail",
+  "version": "0.3.0",
+  "description": "Lazy senior dev mode with intensity levels, for both the omp and pi coding agents",
   "license": "MIT",
   "keywords": [
     "pi-package",
     "pi-extension",
+    "omp-package",
+    "omp-extension",
     "system-prompt",
     "engineering-culture"
   ],
   "files": [
-    "ponytail.ts",
+    "index.ts",
     "README.md",
     "LICENSE"
   ],
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-tui": "*"
+    "@earendil-works/pi-tui": "*",
+    "@oh-my-pi/pi-coding-agent": "*",
+    "@oh-my-pi/pi-tui": "*"
   },
   "pi": {
     "extensions": [
-      "./ponytail.ts"
+      "./index.ts"
+    ]
+  },
+  "omp": {
+    "extensions": [
+      "./index.ts"
     ]
   }
 }
